@@ -10,6 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@chainlink/contracts-ccip": "^1.2.1",
+    "@safe-global/safe-core-protocol": "^0.2.1-alpha.0",
     "hardhat": "^2.19.2"
   },
   "devDependencies": {
