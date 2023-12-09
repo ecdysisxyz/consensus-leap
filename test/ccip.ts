@@ -35,6 +35,10 @@
       const {owner, otherAccount,sender,receiver,router,vote,governror} = await loadFixture(deployFixture);
 
       await setBalance(await sender.getAddress(),ethers.parseEther("1"));
+      await setBalance(await receiver.getAddress(),ethers.parseEther("1"));
+      await setBalance(await router.getAddress(),ethers.parseEther("1"));
+      await setBalance(await governror.getAddress(),ethers.parseEther("1"));
+
       await receiver.allowlistSourceChainSender(0,await sender.getAddress(),true);
 
       return {owner, otherAccount,sender,receiver,router,vote,governror};
@@ -45,13 +49,28 @@
         await loadFixture(deployFixture);
       });
     });
-    
-    describe("Send", function () {
+
+    describe("CCIPSend", function () {
       it("Success", async function () {
         const {owner, sender,router,receiver} = await loadFixture(setupFixture);
 
-        const messageId = await getReturnData(sender.triggerCCIPSend(0,await receiver.getAddress(),[await owner.getAddress()],[0],["0x"]));
+        const messageId = await getReturnData(sender.triggerCCIPSend(0,await receiver.getAddress(),[owner.address],[0],["0x"]));
         await router.ccipTransfer(messageId);
+      });
+    });
+
+    describe("Governor", function () {
+      it("Propose Success", async function () {
+        const {owner, otherAccount, sender,router,receiver,governror} = await loadFixture(setupFixture);
+
+        governror["propose(uint64,address,address[],uint256[],bytes[],string)"](1,await receiver.getAddress(),[otherAccount.address],[ethers.parseEther('0.01')],["0x"],"test");
+      });
+      it("Execute Success", async function () {
+        const {owner, otherAccount, sender,router,receiver,governror} = await loadFixture(setupFixture);
+        
+        const proposalId = await getReturnData(governror["propose(uint64,address,address[],uint256[],bytes[],string)"](1,await receiver.getAddress(),[otherAccount.address],[ethers.parseEther('0.01')],["0x"],"test"));
+
+        await governror["execute(uint256)"](proposalId);
       });
     });
   });

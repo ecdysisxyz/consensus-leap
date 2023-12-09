@@ -19,9 +19,10 @@ contract MockGovernor is Governor, GovernorCountingSimple, GovernorStorage, Gove
     struct CCIPInfo {
         uint64 destinationChainSelector;
         address receiver;
+        bytes32 messageId;
     }
 
-    mapping(uint256 proposalId => CCIPInfo) _CCIPInfos;
+    mapping(uint256 proposalId => CCIPInfo) public CCIPInfos;
 
     function votingDelay() public pure override returns (uint256) {
         return 7200; // 1 day
@@ -50,9 +51,10 @@ contract MockGovernor is Governor, GovernorCountingSimple, GovernorStorage, Gove
     ) public virtual returns (uint256) {
         uint256 proposalId = super.propose(targets, values, calldatas, description);
         
-        _CCIPInfos[proposalId] = CCIPInfo({
+        CCIPInfos[proposalId] = CCIPInfo({
             destinationChainSelector: destinationChainSelector,
-            receiver: receiver
+            receiver: receiver,
+            messageId: bytes32(0)
         });
         
         return proposalId;
@@ -66,6 +68,7 @@ contract MockGovernor is Governor, GovernorCountingSimple, GovernorStorage, Gove
         return super._propose(targets, values, calldatas, description, proposer);
     }
 
+    /// @dev This is a demo, so the voting judgment is disabled.
     function state(uint256 /* proposalId*/) public view virtual override returns (ProposalState) {
         return ProposalState.Succeeded;
     }
@@ -76,9 +79,9 @@ contract MockGovernor is Governor, GovernorCountingSimple, GovernorStorage, Gove
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 /*descriptionHash*/
-    ) internal virtual override {     
-        CCIPInfo memory ccipInfo = _CCIPInfos[proposalId];
+    ) internal virtual override {
+        CCIPInfo storage ccipInfo = CCIPInfos[proposalId];
         
-        triggerCCIPSend(ccipInfo.destinationChainSelector, ccipInfo.receiver, targets,values,calldatas);
+        ccipInfo.messageId = triggerCCIPSend(ccipInfo.destinationChainSelector, ccipInfo.receiver, targets,values,calldatas);
     }
 }
