@@ -40,13 +40,24 @@
       await setBalance(await governror.getAddress(),ethers.parseEther("1"));
 
       await receiver.allowlistSourceChainSender(0,await sender.getAddress(),true);
+      await receiver.allowlistSourceChainSender(0,await governror.getAddress(),true);
 
       return {owner, otherAccount,sender,receiver,router,vote,governror};
     }
 
     describe("Deployment", function () {
-      it("Success", async function () {
+      it("Deploy Success", async function () {
         await loadFixture(deployFixture);
+      });
+      it("Setup Success", async function () {
+        const {owner, otherAccount,sender,receiver,router,vote,governror} = await loadFixture(setupFixture);
+        console.log(owner.address);
+        console.log(otherAccount.address);
+        console.log("sender",await sender.getAddress());
+        console.log("receiver",await receiver.getAddress());
+        console.log("router",await router.getAddress());
+        console.log("vote",await vote.getAddress());
+        console.log("governror",await governror.getAddress());
       });
     });
 
@@ -61,16 +72,30 @@
 
     describe("Governor", function () {
       it("Propose Success", async function () {
-        const {owner, otherAccount, sender,router,receiver,governror} = await loadFixture(setupFixture);
+        const {otherAccount,receiver,governror} = await loadFixture(setupFixture);
 
-        governror["propose(uint64,address,address[],uint256[],bytes[],string)"](1,await receiver.getAddress(),[otherAccount.address],[ethers.parseEther('0.01')],["0x"],"test");
+        governror["propose(uint64,address,address[],uint256[],bytes[],string)"](0,await receiver.getAddress(),[otherAccount.address],[ethers.parseEther('0.01')],["0x"],"test");
       });
       it("Execute Success", async function () {
-        const {owner, otherAccount, sender,router,receiver,governror} = await loadFixture(setupFixture);
+        const {otherAccount,receiver,governror} = await loadFixture(setupFixture);
         
-        const proposalId = await getReturnData(governror["propose(uint64,address,address[],uint256[],bytes[],string)"](1,await receiver.getAddress(),[otherAccount.address],[ethers.parseEther('0.01')],["0x"],"test"));
+        const proposalId = await getReturnData(governror["propose(uint64,address,address[],uint256[],bytes[],string)"](2,await receiver.getAddress(),[otherAccount.address],[ethers.parseEther('0.01')],["0x"],"test"));
 
         await governror["execute(uint256)"](proposalId);
+      });
+    });
+
+    describe("Receiver", function () {
+      it("Receive Success", async function () {
+        const {owner, otherAccount, sender,router,receiver,governror} = await loadFixture(setupFixture);
+
+        const proposalId = await getReturnData(governror["propose(uint64,address,address[],uint256[],bytes[],string)"](0,await receiver.getAddress(),[otherAccount.address],[ethers.parseEther('0.01')],["0x"],"test"));
+
+        await governror["execute(uint256)"](proposalId);
+
+        const messageId = (await governror.CCIPInfos(proposalId)).messageId;
+
+        await router.ccipTransfer(messageId);
       });
     });
   });
