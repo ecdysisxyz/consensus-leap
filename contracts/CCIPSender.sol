@@ -11,6 +11,11 @@ contract CCIPSender {
         LINK
     }
 
+    enum Operation {
+        Call,
+        DelegateCall
+    }
+
     address immutable i_router;
 
     event MessageSent(bytes32 messageId);
@@ -22,8 +27,12 @@ contract CCIPSender {
     function triggerCCIPSend(
         uint64 destinationChainSelector,
         address receiver,
-        bytes calldata message
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas
     ) public returns (bytes32 messageId) {
+        bytes memory message = _encodeMultisendCalldata(targets, values, calldatas);
+
         Client.EVM2AnyMessage memory encodedMessage = Client.EVM2AnyMessage({
             receiver: abi.encode(receiver),
             data: message,
@@ -45,4 +54,24 @@ contract CCIPSender {
         emit MessageSent(messageId);
     }
 
+    function _encodeMultisendCalldata(
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas
+    ) internal pure returns (bytes memory data) {
+        data = hex"";
+        for (uint256 i; i < targets.length; i++) {
+            data = abi.encodePacked(
+                data,
+                abi.encodePacked(
+                    uint8(Operation.Call), /// operation as an uint8.
+                    targets[i], /// to as an address.
+                    values[i], /// value as an uint256.
+                    uint256(calldatas[i].length), /// data length as an uint256.
+                    calldatas[i] /// data as bytes.
+                )
+            );
+        }
+        data = abi.encodeWithSignature("multiSend(bytes)", data);
+    }
 }

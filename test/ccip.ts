@@ -40,9 +40,9 @@
     });
     describe("Send", function () {
       it("Success", async function () {
-        const {sender,router,receiver} = await loadFixture(setupFixture);
+        const {owner, sender,router,receiver} = await loadFixture(setupFixture);
 
-        const messageId = await getReturnData(sender.sendTrigger(0,await receiver.getAddress(),ethers.encodeBytes32String("hello")));
+        const messageId = await getReturnData(sender.triggerCCIPSend(0,await receiver.getAddress(),[await owner.getAddress()],[0],["0x"]));
         await router.ccipTransfer(messageId);
       });
     });

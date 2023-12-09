@@ -66,20 +66,19 @@ contract MockGovernor is Governor, GovernorCountingSimple, GovernorStorage, Gove
         return super._propose(targets, values, calldatas, description, proposer);
     }
 
-    function state(uint256 proposalId) public view virtual override returns (ProposalState) {
+    function state(uint256 /* proposalId*/) public view virtual override returns (ProposalState) {
         return ProposalState.Succeeded;
     }
 
     function _executeOperations(
-        uint256 /* proposalId */,
+        uint256 proposalId,
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         bytes32 /*descriptionHash*/
-    ) internal virtual override {        
-        for (uint256 i = 0; i < targets.length; ++i) {
-            (bool success, bytes memory returndata) = targets[i].call{value: values[i]}(calldatas[i]);
-            Address.verifyCallResult(success, returndata);
-        }
+    ) internal virtual override {     
+        CCIPInfo memory ccipInfo = _CCIPInfos[proposalId];
+        
+        triggerCCIPSend(ccipInfo.destinationChainSelector, ccipInfo.receiver, targets,values,calldatas);
     }
 }
