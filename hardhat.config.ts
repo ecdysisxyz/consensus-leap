@@ -5,7 +5,15 @@ require('dotenv').config();
 const PRIVATE_KEY=process.env.PRIVATE_KEY as string;
 const ETHERSCAN_KEY=process.env.ETHERSCAN_KEY as string;
 const config: HardhatUserConfig = {
-  solidity: "0.8.19",
+  solidity: {
+    version: "0.8.20",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 1000,
+      },
+    },
+  },
   networks: {
     basegoerli: {
       chainId: 84531,
