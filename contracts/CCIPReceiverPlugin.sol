@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import {IAny2EVMMessageReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/IAny2EVMMessageReceiver.sol";
 import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
 import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
-import {ISafe} from "@safe-global/safe-core-protocol/contracts/interfaces/Accounts.sol";
 import {ISafeProtocolManager} from "@safe-global/safe-core-protocol/contracts/interfaces/Manager.sol";
 import {SafeTransaction, SafeProtocolAction} from "@safe-global/safe-core-protocol/contracts/DataTypes.sol";
 import {BasePlugin, BasePluginWithStoredMetadata, PluginMetadata} from "./BasePlugin.sol";
+import {ISafeProtocolPlugin} from "@safe-global/safe-core-protocol/contracts/interfaces/Modules.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract CCIPReceiverPlugin is CCIPReceiver, OwnerIsCreator, BasePluginWithStoredMetadata {
     error SourceChainSenderNotAllowlisted(
@@ -83,7 +85,7 @@ contract CCIPReceiverPlugin is CCIPReceiver, OwnerIsCreator, BasePluginWithStore
 
     function executeFromPlugin(
         ISafeProtocolManager manager,
-        ISafe safe,
+        address safe,
         bytes32 messageId
     ) external returns (bytes[] memory data) {
 
@@ -106,6 +108,6 @@ contract CCIPReceiverPlugin is CCIPReceiver, OwnerIsCreator, BasePluginWithStore
     }
 
     function supportsInterface(bytes4 interfaceId) public pure virtual override(BasePlugin, CCIPReceiver) returns (bool) {
-        return super.supportsInterface(interfaceId);
+        return interfaceId == type(ISafeProtocolPlugin).interfaceId || interfaceId == type(IAny2EVMMessageReceiver).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 }
