@@ -18,26 +18,34 @@
         const sender = await ethers.deployContract("CCIPSender",[await router.getAddress()]);
         await sender.waitForDeployment();
 
-        const receiver = await ethers.deployContract("CCIPReceiverPlugin",[await router.getAddress()]);
+        const receiver = await ethers.deployContract("CCIPReceiverPlugin",[await router.getAddress(), ethers.ZeroAddress]);
         await receiver.waitForDeployment();
 
-        return {owner, otherAccount,sender,receiver,router};
+        const vote = await ethers.deployContract("VoteToken");
+        await vote.waitForDeployment();
+
+        const governror = await ethers.deployContract("MockGovernor",[await vote.getAddress(),await router.getAddress()]);
+        await governror.waitForDeployment();
+
+        return {owner, otherAccount,sender,receiver,router,vote,governror};
     
     };
 
     async function setupFixture() {
-      const {owner, otherAccount,sender,receiver,router} = await loadFixture(deployFixture);
+      const {owner, otherAccount,sender,receiver,router,vote,governror} = await loadFixture(deployFixture);
 
       await setBalance(await sender.getAddress(),ethers.parseEther("1"));
       await receiver.allowlistSourceChainSender(0,await sender.getAddress(),true);
 
-      return {owner, otherAccount,sender,receiver,router};
+      return {owner, otherAccount,sender,receiver,router,vote,governror};
     }
+
     describe("Deployment", function () {
       it("Success", async function () {
         await loadFixture(deployFixture);
       });
     });
+    
     describe("Send", function () {
       it("Success", async function () {
         const {owner, sender,router,receiver} = await loadFixture(setupFixture);
