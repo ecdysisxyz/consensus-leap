@@ -4,8 +4,12 @@ pragma solidity ^0.8.19;
 import {CCIPReceiver} from "@chainlink/contracts-ccip/src/v0.8/ccip/applications/CCIPReceiver.sol";
 import {OwnerIsCreator} from "@chainlink/contracts-ccip/src/v0.8/shared/access/OwnerIsCreator.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
+import {ISafe} from "@safe-global/safe-core-protocol/contracts/interfaces/Accounts.sol";
+import {ISafeProtocolManager} from "@safe-global/safe-core-protocol/contracts/interfaces/Manager.sol";
+import {SafeTransaction, SafeProtocolAction} from "@safe-global/safe-core-protocol/contracts/DataTypes.sol";
+import {BasePlugin, BasePluginWithStoredMetadata, PluginMetadata} from "./BasePlugin.sol";
 
-contract CCIPReceiverPlugin is CCIPReceiver, OwnerIsCreator {
+contract CCIPReceiverPlugin is CCIPReceiver, OwnerIsCreator, BasePluginWithStoredMetadata {
     error SourceChainSenderNotAllowlisted(
         uint64 sourceChainSelector,
         address sender
@@ -31,7 +35,13 @@ contract CCIPReceiverPlugin is CCIPReceiver, OwnerIsCreator {
 
     bytes32[] public receivedMessageIds;
 
-    constructor(address _router) CCIPReceiver(_router) {}
+    address payable immutable multisend;
+
+    constructor(address _router, address _multisend) CCIPReceiver(_router) BasePluginWithStoredMetadata(
+        PluginMetadata({name: "CCIPReceiver Plugin", version: "1.0.0", requiresRootAccess: false, requiresPermissions: 1, iconUrl: "", appUrl: ""})
+    ){
+        multisend = payable(_multisend);
+    }
 
     modifier onlyAllowlisted(uint64 _sourceChainSelector, address _sender) {
         if (!allowlistedSourceChainSenders[_sourceChainSelector][_sender]) {
@@ -71,5 +81,26 @@ contract CCIPReceiverPlugin is CCIPReceiver, OwnerIsCreator {
             message.sourceChainSelector,
             abi.decode(message.sender, (address))
         );
+    }
+
+    function executeFromPlugin(
+        ISafeProtocolManager manager,
+        ISafe safe,
+        bytes32 messageId
+    ) external returns (bytes[] memory data) {
+
+        SafeProtocolAction[] memory actions = new SafeProtocolAction[](1);
+        actions[0] = SafeProtocolAction(multisend,0,receivedMessages[messageId]);
+        SafeTransaction memory safetx = SafeTransaction({
+            actions: actions,
+            nonce: 0,
+            metadataHash: metadataHash
+        });
+
+        data = manager.executeTransaction(safe, safetx);
+    }
+
+    function supportsInterface(bytes4 interfaceId) public pure virtual override(BasePlugin, CCIPReceiver) returns (bool) {
+        return super.supportsInterface(interfaceId);
     }
 }

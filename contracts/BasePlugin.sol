@@ -1,0 +1,87 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import {ISafeProtocolPlugin} from "@safe-global/safe-core-protocol/contracts/interfaces/Modules.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+enum MetadataProviderType {
+    IPFS,
+    URL,
+    Contract,
+    Event
+}
+
+interface IMetadataProvider {
+    function retrieveMetadata(bytes32 metadataHash) external view returns (bytes memory metadata);
+}
+
+struct PluginMetadata {
+    string name;
+    string version;
+    bool requiresRootAccess;
+    uint8 requiresPermissions;
+    string iconUrl;
+    string appUrl;
+}
+
+library PluginMetadataOps {
+    function encode(PluginMetadata memory data) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                uint8(0x00), // Format
+                uint8(0x00), // Format version
+                abi.encode(data.name, data.version, data.requiresRootAccess, data.iconUrl, data.appUrl) // Plugin Metadata
+            );
+    }
+
+    function decode(bytes calldata data) internal pure returns (PluginMetadata memory) {
+        require(bytes16(data[0:2]) == bytes16(0x0000), "Unsupported format or format version");
+        (string memory name, string memory version, bool requiresRootAccess, uint8 requiresPermissions, string memory iconUrl, string memory appUrl) = abi.decode(
+            data[2:],
+            (string, string, bool, uint8, string, string)
+        );
+        return PluginMetadata(name, version, requiresRootAccess, requiresPermissions, iconUrl, appUrl);
+    }
+}
+
+abstract contract BasePlugin is ISafeProtocolPlugin {
+    using PluginMetadataOps for PluginMetadata;
+
+    string public name;
+    string public version;
+    bool public immutable requiresRootAccess;
+    uint8 public immutable requiresPermissions;
+    bytes32 public immutable metadataHash;
+
+    constructor(PluginMetadata memory metadata) {
+        name = metadata.name;
+        version = metadata.version;
+        requiresRootAccess = metadata.requiresRootAccess;
+        requiresPermissions = metadata.requiresPermissions;
+        metadataHash = keccak256(metadata.encode());
+    }
+
+    function supportsInterface(bytes4 interfaceId) external pure virtual override returns (bool) {
+        return interfaceId == type(ISafeProtocolPlugin).interfaceId || interfaceId == type(IERC165).interfaceId;
+    }
+}
+
+abstract contract BasePluginWithStoredMetadata is BasePlugin, IMetadataProvider {
+    using PluginMetadataOps for PluginMetadata;
+
+    bytes private encodedMetadata;
+
+    constructor(PluginMetadata memory metadata) BasePlugin(metadata) {
+        encodedMetadata = metadata.encode();
+    }
+
+    function retrieveMetadata(bytes32 _metadataHash) external view override returns (bytes memory metadata) {
+        require(metadataHash == _metadataHash, "Cannot retrieve metadata");
+        return encodedMetadata;
+    }
+
+    function metadataProvider() public view override returns (uint256 providerType, bytes memory location) {
+        providerType = uint256(MetadataProviderType.Contract);
+        location = abi.encode(address(this));
+    }
+}
