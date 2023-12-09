@@ -4,7 +4,7 @@ async function main() {
     const [deployer] = await ethers.getSigners();
     console.log(deployer.address);
 
-    const sender = await ethers.deployContract("CCIPSender",["0xa8c0c11bf64af62cdca6f93d3769b88bdd7cb93d","0xd886e2286fd1073df82462ea1822119600af80b6"]);
+    const sender = await ethers.deployContract("CCIPSender",["0xa8c0c11bf64af62cdca6f93d3769b88bdd7cb93d"]);
 
     await sender.waitForDeployment();
 

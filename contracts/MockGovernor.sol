@@ -2,40 +2,33 @@
 pragma solidity ^0.8.19;
 
 import "@openzeppelin/contracts/governance/Governor.sol";
-import "@openzeppelin/contracts/governance/extensions/GovernorSettings.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorCountingSimple.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorStorage.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorVotes.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
-import "@openzeppelin/contracts/governance/extensions/GovernorTimelockControl.sol";
+import "./CCIPSender.sol";
 
-contract MockGovernor is Governor, GovernorSettings, GovernorCountingSimple, GovernorStorage, GovernorVotes, GovernorVotesQuorumFraction, GovernorTimelockControl {
-    constructor(IVotes _token, TimelockController _timelock)
+contract MockGovernor is Governor, GovernorCountingSimple, GovernorStorage, GovernorVotes, GovernorVotesQuorumFraction, CCIPSender {
+    constructor(IVotes _token, address _router)
         Governor("MockGovernor")
-        GovernorSettings(7200 /* 1 day */, 50400 /* 1 week */, 0)
         GovernorVotes(_token)
         GovernorVotesQuorumFraction(4)
-        GovernorTimelockControl(_timelock)
+        CCIPSender(_router)
     {}
 
-    // The following functions are overrides required by Solidity.
-
-    function votingDelay()
-        public
-        view
-        override(Governor, GovernorSettings)
-        returns (uint256)
-    {
-        return super.votingDelay();
+    struct CCIPInfo {
+        uint64 destinationChainSelector;
+        address receiver;
     }
 
-    function votingPeriod()
-        public
-        view
-        override(Governor, GovernorSettings)
-        returns (uint256)
-    {
-        return super.votingPeriod();
+    mapping(uint256 proposalId => CCIPInfo) _CCIPInfos;
+
+    function votingDelay() public pure override returns (uint256) {
+        return 7200; // 1 day
+    }
+
+    function votingPeriod() public pure override returns (uint256) {
+        return 50400; // 1 week
     }
 
     function quorum(uint256 blockNumber)
@@ -47,31 +40,22 @@ contract MockGovernor is Governor, GovernorSettings, GovernorCountingSimple, Gov
         return super.quorum(blockNumber);
     }
 
-    function state(uint256 proposalId)
-        public
-        view
-        override(Governor, GovernorTimelockControl)
-        returns (ProposalState)
-    {
-        return super.state(proposalId);
-    }
-
-    function proposalNeedsQueuing(uint256 proposalId)
-        public
-        view
-        override(Governor, GovernorTimelockControl)
-        returns (bool)
-    {
-        return super.proposalNeedsQueuing(proposalId);
-    }
-
-    function proposalThreshold()
-        public
-        view
-        override(Governor, GovernorSettings)
-        returns (uint256)
-    {
-        return super.proposalThreshold();
+    function propose(
+        uint64 destinationChainSelector,
+        address receiver,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        string memory description
+    ) public virtual returns (uint256) {
+        uint256 proposalId = super.propose(targets, values, calldatas, description);
+        
+        _CCIPInfos[proposalId] = CCIPInfo({
+            destinationChainSelector: destinationChainSelector,
+            receiver: receiver
+        });
+        
+        return proposalId;
     }
 
     function _propose(address[] memory targets, uint256[] memory values, bytes[] memory calldatas, string memory description, address proposer)
@@ -82,35 +66,20 @@ contract MockGovernor is Governor, GovernorSettings, GovernorCountingSimple, Gov
         return super._propose(targets, values, calldatas, description, proposer);
     }
 
-    function _queueOperations(uint256 proposalId, address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash)
-        internal
-        override(Governor, GovernorTimelockControl)
-        returns (uint48)
-    {
-        return super._queueOperations(proposalId, targets, values, calldatas, descriptionHash);
+    function state(uint256 proposalId) public view virtual override returns (ProposalState) {
+        return ProposalState.Succeeded;
     }
 
-    function _executeOperations(uint256 proposalId, address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash)
-        internal
-        override(Governor, GovernorTimelockControl)
-    {
-        super._executeOperations(proposalId, targets, values, calldatas, descriptionHash);
-    }
-
-    function _cancel(address[] memory targets, uint256[] memory values, bytes[] memory calldatas, bytes32 descriptionHash)
-        internal
-        override(Governor, GovernorTimelockControl)
-        returns (uint256)
-    {
-        return super._cancel(targets, values, calldatas, descriptionHash);
-    }
-
-    function _executor()
-        internal
-        view
-        override(Governor, GovernorTimelockControl)
-        returns (address)
-    {
-        return super._executor();
+    function _executeOperations(
+        uint256 /* proposalId */,
+        address[] memory targets,
+        uint256[] memory values,
+        bytes[] memory calldatas,
+        bytes32 /*descriptionHash*/
+    ) internal virtual override {        
+        for (uint256 i = 0; i < targets.length; ++i) {
+            (bool success, bytes memory returndata) = targets[i].call{value: values[i]}(calldatas[i]);
+            Address.verifyCallResult(success, returndata);
+        }
     }
 }
