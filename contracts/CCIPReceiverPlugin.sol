@@ -15,8 +15,6 @@ contract CCIPReceiverPlugin is CCIPReceiver, OwnerIsCreator, BasePluginWithStore
         address sender
     );
 
-    error TransactionsFailed();
-
     error MessageAlreadyExecuted();
 
     event MessageReceived(
@@ -89,6 +87,11 @@ contract CCIPReceiverPlugin is CCIPReceiver, OwnerIsCreator, BasePluginWithStore
         bytes32 messageId
     ) external returns (bytes[] memory data) {
 
+        if (isMessageExecuted[messageId]) {
+            revert MessageAlreadyExecuted();
+        }
+        isMessageExecuted[messageId] = true;
+
         SafeProtocolAction[] memory actions = new SafeProtocolAction[](1);
         actions[0] = SafeProtocolAction(multisend,0,receivedMessages[messageId]);
         SafeTransaction memory safetx = SafeTransaction({
@@ -98,6 +101,8 @@ contract CCIPReceiverPlugin is CCIPReceiver, OwnerIsCreator, BasePluginWithStore
         });
 
         data = manager.executeTransaction(safe, safetx);
+
+        emit MessageExecuted(messageId);
     }
 
     function supportsInterface(bytes4 interfaceId) public pure virtual override(BasePlugin, CCIPReceiver) returns (bool) {

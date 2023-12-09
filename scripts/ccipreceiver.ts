@@ -2,7 +2,7 @@ import { ethers } from "hardhat";
 
 async function main() {
 
-  const receiver = await ethers.deployContract("CCIPReceiverPlugin",["0xd0daae2231e9cb96b94c8512223533293c3693bf"]);
+  const receiver = await ethers.deployContract("CCIPReceiverPlugin",["0xd0daae2231e9cb96b94c8512223533293c3693bf","0x998739BFdAAdde7C933B942a68053933098f9EDa"]);
 
   await receiver.waitForDeployment();
 
